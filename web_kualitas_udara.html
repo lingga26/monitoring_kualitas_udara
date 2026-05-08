@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Air Quality Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef2f7;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 15px 0;
+      margin-bottom: 20px;
+    }
+    h1 { margin: 0; }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    table {
+      border-collapse: collapse;
+      margin: 20px 0;
+      width: 80%;
+      max-width: 600px;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 15px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+      font-size: 1.1em;
+    }
+    th {
+      background: #34495e;
+      color: white;
+    }
+    tr:last-child td { border-bottom: none; }
+    .good { background: #2ecc71; color: white; }
+    .moderate { background: #f1c40f; color: white; }
+    .unhealthy-sg { background: #e67e22; color: white; }
+    .unhealthy { background: #e74c3c; color: white; }
+    .very-unhealthy { background: #8e44ad; color: white; }
+    .hazardous { background: #2c3e50; color: white; }
+    canvas {
+      margin: 30px auto;
+      max-width: 800px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌍 Air Quality IoT Dashboard</h1>
+  </header>
+
+  <div class="container">
+    <table>
+      <thead>
+        <tr>
+          <th>Parameter</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Temperature</td><td id="temp">Loading...</td></tr>
+        <tr><td>Humidity</td><td id="hum">Loading...</td></tr>
+        <tr><td>Pressure</td><td id="pres">Loading...</td></tr>
+        <tr><td>Gas</td><td id="gas">Loading...</td></tr>
+        <tr><td>AQI Index</td><td id="aqi">Loading...</td></tr>
+        <tr><td>Status</td><td id="status">Loading...</td></tr>
+      </tbody>
+    </table>
+
+    <canvas id="aqiChart"></canvas>
+  </div>
+
+  <script>
+    const channelID = "2988837";   // Channel ID kamu
+    const readAPI = "CPXIIK4F93LGIBDU"; // Read API Key kamu
+    const urlLast = `https://api.thingspeak.com/channels/${channelID}/feeds.json?api_key=${readAPI}&results=1`;
+    const urlChart = `https://api.thingspeak.com/channels/${channelID}/fields/5.json?api_key=${readAPI}&results=20`;
+
+    function getAQIStatus(aqi) {
+      if (aqi <= 50) return {text: "Good", cls: "good"};
+      else if (aqi <= 100) return {text: "Moderate", cls: "moderate"};
+      else if (aqi <= 150) return {text: "Unhealthy (SG)", cls: "unhealthy-sg"};
+      else if (aqi <= 200) return {text: "Unhealthy", cls: "unhealthy"};
+      else if (aqi <= 300) return {text: "Very Unhealthy", cls: "very-unhealthy"};
+      else return {text: "Hazardous", cls: "hazardous"};
+    }
+
+    async function fetchData() {
+      try {
+        let res = await fetch(urlLast);
+        let data = await res.json();
+        let feed = data.feeds[0];
+
+        document.getElementById("temp").innerText = `${feed.field1} °C`;
+        document.getElementById("hum").innerText  = `${feed.field2} %`;
+        document.getElementById("pres").innerText = `${feed.field3} hPa`;
+        document.getElementById("gas").innerText  = `${feed.field4} kΩ`;
+        document.getElementById("aqi").innerText  = `${feed.field5}`;
+
+        let aqiVal = parseInt(feed.field5);
+        let status = getAQIStatus(aqiVal);
+        let statusCell = document.getElementById("status");
+        statusCell.innerText = status.text;
+        statusCell.className = status.cls;
+      } catch (e) {
+        console.error("Gagal ambil data:", e);
+        document.getElementById("status").innerText = "Error fetching data!";
+      }
+    }
+
+    async function loadChart() {
+      try {
+        let res = await fetch(urlChart);
+        let data = await res.json();
+        let feeds = data.feeds;
+
+        let labels = feeds.map(f => new Date(f.created_at).toLocaleTimeString());
+        let values = feeds.map(f => parseInt(f.field5));
+
+        new Chart(document.getElementById("aqiChart"), {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              label: "AQI Trend",
+              data: values,
+              fill: false,
+              borderColor: "rgba(231,76,60,1)",
+              backgroundColor: "rgba(231,76,60,0.2)",
+              tension: 0.2,
+              pointRadius: 5
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: true }
+            },
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      } catch (e) {
+        console.error("Gagal ambil data chart:", e);
+      }
+    }
+
+    fetchData();
+    loadChart();
+    setInterval(fetchData, 20000); // refresh tiap 20 detik
+  </script>
+</body>
+</html>
