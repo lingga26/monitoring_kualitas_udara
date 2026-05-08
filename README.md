@@ -1,2 +1,1 @@
 # monitoring_kualitas_udara
-# machine_learning_prediksi_saham
